@@ -3,7 +3,7 @@ from evaluator import ProbingEvaluator
 import torch
 from models import MockModel
 import glob
-import os
+
 
 def get_device():
     """Check for GPU availability."""
@@ -45,28 +45,10 @@ def load_data(device):
 
 
 def load_model():
-    """Load the trained JEPA model for evaluation."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    # Specify the model checkpoint path
-    model_path = "./checkpoints/jepa_final.pt"  # 您可以根据需要修改路径
-    
-    if os.path.exists(model_path):
-        print(f"Loading model from {model_path}")
-        checkpoint = torch.load(model_path, map_location=device)
-        
-        # 使用保存的配置初始化模型
-        model = JEPAModel(
-            **checkpoint['model_config'],
-            device=device
-        )
-        
-        # 加载权重
-        model.load_state_dict(checkpoint['model_state_dict'])
-        model = model.to(device)
-        
-        print(f"成功加载模型 (epoch {checkpoint.get('epoch', 'unknown')})")
-        return model
+    """Load or initialize the model."""
+    # TODO: Replace MockModel with your trained model
+    model = MockModel()
+    return model
 
 
 def evaluate_model(device, model, probe_train_ds, probe_val_ds):
