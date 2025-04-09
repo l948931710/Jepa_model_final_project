@@ -1,10 +1,9 @@
 from dataset import create_wall_dataloader
 from evaluator import ProbingEvaluator
 import torch
-from models import MockModel
 import glob
 import os
-
+from models import JEPAModel
 def get_device():
     """Check for GPU availability."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,29 +43,49 @@ def load_data(device):
     return probe_train_ds, probe_val_ds
 
 
-def load_model():
-    """Load the trained JEPA model for evaluation."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def load_model(model_path, device="cuda"):
+    """加载训练好的JEPA模型"""
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"未找到模型文件: {model_path}")
     
-    # Specify the model checkpoint path
-    model_path = "./checkpoints/jepa_final.pt"  # 您可以根据需要修改路径
+    # 加载checkpoint
+    print(f"从{model_path}加载模型")
+    checkpoint = torch.load(model_path, map_location=device)
     
-    if os.path.exists(model_path):
-        print(f"Loading model from {model_path}")
-        checkpoint = torch.load(model_path, map_location=device)
-        
-        # 使用保存的配置初始化模型
-        model = JEPAModel(
-            **checkpoint['model_config'],
-            device=device
-        )
-        
-        # 加载权重
-        model.load_state_dict(checkpoint['model_state_dict'])
-        model = model.to(device)
-        
-        print(f"成功加载模型 (epoch {checkpoint.get('epoch', 'unknown')})")
-        return model
+    # 从checkpoint获取模型配置
+    model_config = checkpoint.get('model_config', {
+        'latent_dim': 256,
+        'action_dim': 2,
+        'action_embed_dim': 128,
+        'base_channels': 32,
+        'transformer_layers': 3,
+        'nhead': 8,
+        'dim_feedforward': 1024,
+    })
+    
+    # 实例化模型
+    model = JEPAModel(
+        latent_dim=model_config.get('latent_dim', 256),
+        action_dim=model_config.get('action_dim', 2),
+        action_embed_dim=model_config.get('action_embed_dim', 128),
+        base_channels=model_config.get('base_channels', 32),
+        transformer_layers=model_config.get('transformer_layers', 3),
+        nhead=model_config.get('nhead', 8),
+        dim_feedforward=model_config.get('dim_feedforward', 1024),
+        device=device
+    )
+    
+    # 加载模型权重
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+    model.eval()  # 设置为评估模式
+    
+    # 打印模型信息
+    print(f"加载了模型 (Epoch {checkpoint.get('epoch', 'unknown')})")
+    print(f"损失类型: {checkpoint.get('loss_type', 'unknown')}")
+    print(f"损失值: {checkpoint.get('loss', 'unknown')}")
+    
+    return model
 
 
 def evaluate_model(device, model, probe_train_ds, probe_val_ds):
@@ -88,7 +107,7 @@ def evaluate_model(device, model, probe_train_ds, probe_val_ds):
 
 if __name__ == "__main__":
     device = get_device()
-    model = load_model()
+    model = load_model("./checkpoints/experiment_20250409_041828/jepa_best.pt", device)
     
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Total Trainable Parameters: {total_params:,}")
